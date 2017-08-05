@@ -13,20 +13,55 @@ classes <- sapply(storms, class)
 
 classes[classes == "integer" | classes == "logical"] <- "character"
 
-# Read in full dataset. Still takes a while (almost 2 minutes!) but it works
-storms <- read.csv("stormData.csv.bz2", header = TRUE,
-                   colClasses = classes, stringsAsFactors = FALSE)
-
-# PROBLEM: Now I don't have the NA's like I did before. Let's try and figure that out.
-
-a <- read.csv("stormData.csv.bz2", header = TRUE,
-              nrow = 3, stringsAsFactors = FALSE)
-
-a # Looks like missing values are coded with ""
-
-# Try reading in the data again specifying na.strings
+# Read in full dataset specifying na.string = "".
+# Still takes a while (almost 2 minutes!) but it works
 storms <- read.csv("stormData.csv.bz2", header = TRUE,
                    colClasses = classes, stringsAsFactors = FALSE,
                    na.strings = "")
 
-head(storms, 3) # Looks like it was successful
+
+# Try making it faster.
+
+# Can't figure out how to make fread work.
+library(data.table)
+storms <- fread("stormData.csv.bz2")
+file <- file("stormData.csv.bz2")
+storms <- fread(sprintf("bzcat %s | tr -d '\\000'", file))
+
+file <- bzfile(description = "stormData.csv.bz2")
+storms <- fread(file)
+
+library(stringr)
+wd <- str_c(getwd(), "stormdata.csv.bz2", sep = "/")
+
+storms <- fread(str_c("bunzip -cq", wd, sep = " "))
+
+# Can't figure out how to get sqldf to work
+library(sqldf)
+file <- file("stormData.csv.bz2")
+storms <- read.csv.sql("stormData.csv.bz2", dbname = NULL)
+
+# Tried using system and shell commands, couldn't figure out how to
+# get it to work
+system("bzip2 -d stormData.csv.bz2")
+shell("bunzip2 stormData.csv.bz2")
+shell("bzip2 -d stormData.csv.bz2")
+
+# Back to fread, using bunzip2 from R.utils package. It works!
+# system.time reduced to less than 30 seconds overall.
+library(R.utils)
+bunzip2(filename = "stormData.csv.bz2", destname = "stormData.csv",
+        remove = FALSE)
+system.time(bunzip2(filename = "stormData.csv.bz2", # user time: 20.24 sec
+                    destname = "test.csv",
+                    remove = FALSE))
+system.time(storms <- fread("stormData.csv")) # user time: 6.47 sec
+head(storms, 1)
+
+
+
+
+
+
+
+
