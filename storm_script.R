@@ -3,38 +3,30 @@
 url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
 download.file(url, destfile = "stormData.csv.bz2")
 
-# First attempt reading in data took a long time so let's try speeding it up.
-
-
-storms <- read.csv("stormData.csv.bz2", header = TRUE, # read in just a few rows
+# Read in first few rows and store classes of variables
+storms <- read.csv("stormData.csv.bz2", header = TRUE,
                    nrow = 3, stringsAsFactors = FALSE)
+classes <- sapply(storms, class)
 
-classes <- sapply(storms, class) # store classes of variables
+# Change the integers and logicals to characters because otherwise
+# errors will occur reading in the data.
 
-# Try reading in data again. Error occurred: the third variable doesn't look
-# like an integer.
+classes[classes == "integer" | classes == "logical"] <- "character"
+
+# Read in full dataset. Still takes a while (almost 2 minutes!) but it works
 storms <- read.csv("stormData.csv.bz2", header = TRUE,
-                   stringsAsFactors = FALSE, 
-                   colClasses = classes)
+                   colClasses = classes, stringsAsFactors = FALSE)
 
-classes[3] <- "character" # change class of third variable to character
+# PROBLEM: Now I don't have the NA's like I did before. Let's try and figure that out.
 
-# Try reading in data again. Another error occurred with the only other
-# variable with class "integer".
+a <- read.csv("stormData.csv.bz2", header = TRUE,
+              nrow = 3, stringsAsFactors = FALSE)
+
+a # Looks like missing values are coded with ""
+
+# Try reading in the data again specifying na.strings
 storms <- read.csv("stormData.csv.bz2", header = TRUE,
-                   stringsAsFactors = FALSE, colClasses = classes)
+                   colClasses = classes, stringsAsFactors = FALSE,
+                   na.strings = "")
 
-classes[classes == "integer"] <- "character" # change class of other integer variable to character
-
-# Try reading in data again. STILL, an error occurred.
-# This time, there was a problem with a variable with
-# class "logical".
-storms <- read.csv("stormData.csv.bz2", header = TRUE,
-                   stringsAsFactors = FALSE, colClasses = classes)
-
-classes[classes == "logical"] <- "character" # change all logicals to characters
-
-# Try reading in data again. Still takes a while (almost two minutes!)
-# but it works.
-storms <- read.csv("stormData.csv.bz2", header = TRUE,
-                   stringsAsFactors = FALSE, colClasses = classes)
+head(storms, 3) # Looks like it was successful
