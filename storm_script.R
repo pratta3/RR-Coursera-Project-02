@@ -14,27 +14,27 @@ sub <- storms[,c(2,7,8,23,24,25,26,27,28)]
 
 # Every date in BGN_DATE has time 0:00:00
 sum(str_detect(sub$BGN_DATE, "0:00:00"))
+
 # Convert BGN_DATE to POSIXct
 library(lubridate)
 sub$BGN_DATE <- mdy_hms(sub$BGN_DATE)
 
+# NOTE: I didn't bother changing ST to KS (see previous commit
+# about figuring out the STATE abbreviations) because I'm not
+# particularly interested in the STATE variable at this point
+# and I'm also not absolutely certain that it's actually a typo.
 
-# row 203917 has a typo in STATE, should be Miami County, KS
-# There are a lot of STATE names that I don't recognize.
-# E.g. "LC" appears to be by Lake St. Clair between Michigan and Ontario (Canada).
-# I don't know where LC came from.
+# There are only supposed to be 48 unique EVTYPEs but there
+# are 985!!
+length(unique(sub$EVTYPE))
+# Sort events in alphabetical order
+library(dplyr)
+library(stringr)
+events <- sub %>% pull(EVTYPE) %>% unique %>% str_trim %>% sort
+# This will take some time. First I'll figure out how I want to
+# subset the data for the analysis and then I'll work on fixing
+# the event types.
 
-# Aha, LE looks like it stands for Lake Erie. I wonder if LC stands for Lake [St.] Clair
-# This is probably the case. All the other L's correspond to other lakes. (E.g. LS = Lake
-# Superior, LM = Lake Michigan, etc.)
-
-# MH = Marshall Islands
-# PH = Philippine Islands ?
-# PK = somewhere in Alaska
-# PM = somewhere near Guam
-# PT = California, Pacific coast
-# SL = St. Lawrence River in Quebec
-# XX = somewhere near Montreal
 
 
 
