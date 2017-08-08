@@ -26,12 +26,66 @@ p1 <- sub %>% filter(year(BGN_DATE) %in% 1950:1954) %>% arrange(BGN_DATE) # only
 p2 <- sub %>% filter(year(BGN_DATE) %in% 1955:1995) %>% arrange(BGN_DATE) # tornadoes, thunderstorm wind, and hail
 p3 <- sub %>% filter(year(BGN_DATE) %in% 1996:2011) %>% arrange(BGN_DATE) # all events
 
+# Questions:
+# 1) How many total fatalities/injuries have been caused by a given event type?
+# 2) How many individual events of that type have cause more than 0 fatalities/injuries?
+
+health <- p3 %>% 
+        filter(FATALITIES > 0 | INJURIES > 0) %>% 
+        mutate(EVTYPE = as.factor(EVTYPE)) %>% 
+        group_by(EVTYPE) %>% 
+        summarize(num.events = n(),
+                  total.fat = sum(FATALITIES),
+                  mean.fat = mean(FATALITIES),
+                  median.fat = median(FATALITIES),
+                  max.fat = max(FATALITIES),
+                  total.inj = sum(INJURIES),
+                  mean.inj = mean(INJURIES),
+                  median.inj = median(INJURIES),
+                  max.inj = max(INJURIES)) %>% 
+        arrange(desc(num.events))
+
+fat <- arrange(health, desc(total.fat))
+inj <- arrange(health, desc(total.inj))
+num <- arrange(health, desc(num.events))
+
+# plot showing top ten total fatalities
+par(mar = c(5,9,4,2), las = 2)
+with(fat[10:1,], 
+     barplot(total.fat, 
+             names.arg = EVTYPE,
+             horiz = TRUE,
+             xlim = c(0,2000),
+             cex.names = .75,
+             main = "Total number of fatalities from 1996-2011",
+             xlab = "Total fatalities"))
+# plot showing top ten total injuries
+with(inj[10:1,],
+     barplot(total.inj, 
+             names.arg = EVTYPE,
+             horiz = TRUE,
+             # xlim = c(0,2000),
+             cex.names = .75,
+             main = "Total number of injuries from 1996-2011",
+             xlab = "Total injuries"))
+
+# NOTE: the difference between HEAT and EXCESSIVE HEAT is the heat index threshold
+# used to define them. A HEAT advisory occurs when the heat index is between 100 and
+# 105 degrees. An EXCESSIVE HEAT warning occurs when the heat index reaches or exceeds
+# 105 degrees. The heat index is a way of expressing the discomfort felt due the 
+# combined effects of temperature and humidity.
+
+
+
+
+
 
 # Extract official event names from online database. Note that there
 # are actually 49 unique events, not 48.
 eventsurl <- url("https://www.ncdc.noaa.gov/stormevents/choosedates.jsp?statefips=-999%2CALL")
 event.names <- readLines(eventsurl)[467:515]
 event.names <- event.names %>% str_extract(">.+<") %>% str_extract("[A-Z].+[a-z]") %>% toupper
+event.names[25] <- "HURRICANE/TYPHOON" # manually correct a typo
 
 
 library(stringr)
@@ -42,24 +96,7 @@ p3$EVTYPE <- str_replace(p3$EVTYPE, "TSTM", "THUNDERSTORM")
 
 
 
-# If I just match EVTYPE directly to event.names with %in%, are some categories
-# disproportionately affected? This is a difficult question to answer. I'll
-# come back to it later. I'm going to try a different approach first: I'll
-# try subsetting the data according to the damage that individual events
-# caused before looking at the event types.
 
-
-install.packages("stringdist")
-library(stringdist)
-
-a <- p3$EVTYPE %>% unique # unique EVTYPEs in p3
-c <- a %in% event.names
-c <- a[!c] # subset EVTYPEs in p3 that DO NOT appear in event.names
-
-d <- p3 %>% filter(EVTYPE %in% c)
-
-
-a <- amatch(events, event.names, maxDist = 1.4, weight = c(d = 0.2, i = 1, s = 1, t = 1))
 
 
 
