@@ -6,14 +6,12 @@ download.file(url, destfile = "stormData.csv.bz2")
 # Unzip the bz2 file, store it in a temporary file, read in
 # data using fread, and finally delete the temporary file.
 library(R.utils)
+library(data.table) # I forgot to include this in past updates. Need it for fread
 file <- bunzip2("stormData.csv.bz2", temporary = TRUE, remove = FALSE)
 storms <- fread(file)
 unlink(file, recursive = TRUE)
 
 sub <- storms[,c(2,7,8,23,24,25,26,27,28)]
-
-# Every date in BGN_DATE has time 0:00:00
-sum(str_detect(sub$BGN_DATE, "0:00:00"))
 
 # Convert BGN_DATE to POSIXct
 library(lubridate)
@@ -28,10 +26,12 @@ p3 <- sub %>% filter(year(BGN_DATE) %in% 1996:2011) %>% arrange(BGN_DATE) # all 
 
 # Extract official event names from online database. Note that there
 # are actually 49 unique events, not 48.
+library(stringr) # Fort to include this in past updates. Need it for str_extract
 eventsurl <- url("https://www.ncdc.noaa.gov/stormevents/choosedates.jsp?statefips=-999%2CALL")
 event.names <- readLines(eventsurl)[467:515]
 event.names <- event.names %>% str_extract(">.+<") %>% str_extract("[A-Z].+[a-z]") %>% toupper
 event.names[25] <- "HURRICANE/TYPHOON" # manually correct a typo
+close(eventsurl) # close connection
 
 # See if there are any EVTYPE categories that are misspelled and could affect
 # conclusions if they were spelled correctlly and were included in the analysis.
@@ -175,6 +175,69 @@ money <- p3 %>%
 # I can't figure out why there are ZERO fatalities and injuries
 # listed for Hurricane Katrina. These and the property and crop damage
 # numberes do not match up with the data from the online database...
+
+katrina <- storms %>% 
+        filter(str_detect(REMARKS, "Katrina|KATRINA")) %>%
+        mutate(BGN_DATE = mdy_hms(BGN_DATE)) %>% 
+        filter(month(BGN_DATE) %in% c(8,9)) %>% 
+        mutate(prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
+               crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP)) %>% 
+        summarize(fatalities = sum(FATALITIES, na.rm = TRUE),
+                  injuries = sum(INJURIES, na.rm = TRUE),
+                  prop.dmg = sum(prop.dmg),
+                  crop.dmg = sum(crop.dmg))
+
+# According to this, during Hurricane Katrina there were
+# 25 deaths, 118 injuries, $32 billion property damage, and
+# $2 billion crop damage. It might not be a perfect approach
+# though.
+
+katrina2 <- storms %>% 
+        mutate(BGN_DATE = mdy_hms(BGN_DATE)) %>% 
+        filter(year(BGN_DATE) == 2005 & month(BGN_DATE) %in% c(8,9)) %>% 
+        mutate(prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
+               crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP)) %>% 
+        group_by(BGN_DATE) %>% 
+        summarize(num.days = n(),
+                  fatalities = sum(FATALITIES),
+                  injuries = sum(INJURIES),
+                  prop.dmg = sum(prop.dmg),
+                  crop.dmg = sum(crop.dmg))
+
+# There are a lot of entries that occur during the last week
+# of August 2005 when Hurricane Katrina occurred, but again,
+# according to this there were not as many deaths and injuries
+# as expected. This is especially annoying when considering the
+# fact that in the description of at least one entry, there is
+# listed a much larger number of casualties: (I had to do a bit
+# of manual searching through the remarks after filtering out
+# selections)
+
+katrina3 <- storms %>% 
+        select(REMARKS) %>% 
+        filter(str_detect(REMARKS, "Katrina|KATRINA")) %>% 
+        mutate(fatalities = str_c(str_extract_all(REMARKS, "(\\d+|[A-Za-z]+) (\\d+|[A-Za-z]+) (fatality|fatalities)"),
+                                  sep = ","),
+               deaths = str_c(str_extract_all(REMARKS, "(\\d+|[A-Za-z]+) (death|deaths)"))) %>% 
+        filter(fatalities != "character(0)" | deaths != "character(0)")
+
+katrina4 <- storms %>% 
+        select(REMARKS) %>% 
+        filter(str_detect(REMARKS, "Katrina|KATRINA")) %>% 
+        mutate(numbers = str_c(str_extract_all(REMARKS, "\\d{4}"), sep = ",")) %>% 
+        filter(numbers != "character(0)")
+
+storms %>% select(REMARKS) %>% filter(str_detect(REMARKS, "Hurricane Katrina was one of the strongest and most"))
+# Fatalities occurring in Louisiana as a result of Hurricane Katrina numbered approximately 1097 people as of 
+# late June 2006. The majority of the victims were in the New Orleans area. 480 other Louisiana residents died 
+# in other states after evacuating..\r\n Detailed information on the deaths, locations, and indirect or direct 
+# fatalities will be described in updates to Storm Data.
+
+# My only guess is that these deaths could not be directly attributed to any of the EVTYPEs available in
+# the Storm Data. But this seems unusual.
+
+
+
 
 
 
