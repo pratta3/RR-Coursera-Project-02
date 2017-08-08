@@ -57,6 +57,11 @@ p3 <- p3 %>% mutate(EVTYPE = toupper(EVTYPE),
 
 
 
+### HEALTH CONSEQUENCES ###
+# =========================
+
+
+
 # Questions:
 # 1) How many total fatalities/injuries have been caused by a given event type?
 # 2) How many individual events of that type have cause more than 0 fatalities/injuries?
@@ -110,36 +115,66 @@ with(inj[10:1,],
 
 
 
-# > Sys.time()
-# [1] "2017-08-07 22:43:34 EDT"
-# > sessionInfo()
-# R version 3.3.3 (2017-03-06)
-# Platform: x86_64-w64-mingw32/x64 (64-bit)
-# Running under: Windows >= 8 x64 (build 9200)
-# 
-# locale:
-#         [1] LC_COLLATE=English_United States.1252  LC_CTYPE=English_United States.1252    LC_MONETARY=English_United States.1252
-# [4] LC_NUMERIC=C                           LC_TIME=English_United States.1252    
-# 
-# attached base packages:
-#         [1] stats     graphics  grDevices utils     datasets  methods   base     
-# 
-# other attached packages:
-#         [1] ggplot2_2.2.1      stringdist_0.9.4.6 lubridate_1.6.0    bindrcpp_0.2       dplyr_0.7.1        R.utils_2.5.0      R.oo_1.21.0       
-# [8] R.methodsS3_1.7.1  stringr_1.2.0      sqldf_0.4-11       RSQLite_2.0        gsubfn_0.6-6       proto_1.0.0        data.table_1.10.4 
-# 
-# loaded via a namespace (and not attached):
-#         [1] Rcpp_0.12.11     plyr_1.8.4       bindr_0.1        tools_3.3.3      digest_0.6.12    bit_1.1-12       memoise_1.1.0   
-# [8] tibble_1.3.3     gtable_0.2.0     pkgconfig_2.0.1  rlang_0.1.1      DBI_0.7          parallel_3.3.3   bit64_0.9-7     
-# [15] grid_3.3.3       glue_1.1.1       R6_2.2.2         tcltk_3.3.3      blob_1.1.0       magrittr_1.5     scales_0.4.1    
-# [22] assertthat_0.2.0 colorspace_1.3-2 stringi_1.1.5    lazyeval_0.2.0   munsell_0.4.3    chron_2.3-50    
+
+
+### ECONOMIC CONSEQUENCES ###
+# ===========================
 
 
 
 
+# Fix typos (or is it a typo after all?)
+# p3$PROPDMGEXP[354415] <- "M"
 
+# Look at PROPDMG and CROPDMG
 
+# All cases where PROPDMGEXP is equal to "", PROPDMG is equal to 0.
+nrow(p3[p3$PROPDMG == 0 & p3$PROPDMGEXP == "",]) == sum(p3$PROPDMGEXP == "")
+# Also the only case where PROPDMGEXP is 0, PROPDMG is also equal to 0.
+head(p3[p3$PROPDMGEXP == 0,])
+# Same applies for CROPDMGEXP and CROPDMG. (There aren't any 0's in CROPDMGEXP.)
+nrow(p3[p3$CROPDMG == 0 & p3$CROPDMGEXP == "",]) == sum(p3$CROPDMGEXP == "")
 
+# dmg.convert is a function that calculates the literal dollar amount
+# from PROPDMG and PROPDMGEXP (or CROPDMG and CROPDMGEXP).
+dmg.convert <- function(x, y){
+        z <- rep(NA, length(x))
+        for(i in 1:length(x)){
+                if(y[i] == "" | y[i] == "0"){
+                        z[i] <- 0
+                } else if(y[i] == "K"){
+                        z[i] <- x[i]*10^3
+                } else if(y[i] == "M"){
+                        z[i] <- x[i]*10^6
+                } else if(y[i] == "B"){
+                        z[i] <- x[i]*10^9
+                }
+        }
+        z
+}
+
+# Create two new variables with literal dollar amount for
+# property and crop damage.
+p3$prop.dmg <- dmg.convert(p3$PROPDMG, p3$PROPDMGEXP)
+p3$crop.dmg <- dmg.convert(p3$CROPDMG, p3$CROPDMGEXP)
+
+money <- p3 %>% 
+        filter(prop.dmg > 0 | crop.dmg > 0) %>% 
+        group_by(EVTYPE) %>% 
+        summarize(num.events = n(),
+                  total.prop = sum(prop.dmg),
+                  mean.prop = mean(prop.dmg),
+                  median.prop = median(prop.dmg),
+                  max.prop = max(prop.dmg),
+                  total.crop = sum(crop.dmg),
+                  mean.crop = mean(crop.dmg),
+                  median.crop = median(crop.dmg),
+                  max.crop = max(crop.dmg)) %>% 
+        arrange(desc(total.prop))
+
+# I can't figure out why there are ZERO fatalities and injuries
+# listed for Hurricane Katrina. These and the property and crop damage
+# numberes do not match up with the data from the online database...
 
 
 
