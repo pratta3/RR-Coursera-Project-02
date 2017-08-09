@@ -26,7 +26,7 @@ dmg.convert <- function(x, y){
                         z[i] <- x[i]*10^9
                 }
         }
-        z
+        return(z)
 }
 
 sub <- storms[,c(2,7,8,23,24,25,26,27,28)]
@@ -34,18 +34,34 @@ sub2 <- storms[,c(2,6,7,8,23,24,25,26,27,28,36)] # Better subset contains REMARK
 
 # Convert BGN_DATE to POSIXct
 library(lubridate)
+library(dplyr)
 sub$BGN_DATE <- mdy_hms(sub$BGN_DATE)
 sub2 <- sub2 %>% mutate(BGN_DATE = mdy_hms(BGN_DATE),
                         EVTYPE = toupper(EVTYPE),
                         prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
                         crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP))
 
-# Break up the data into three periods based on the EVTYPES
-# recorded in each period
-library(dplyr)
-# p1 <- sub %>% filter(year(BGN_DATE) %in% 1950:1954) %>% arrange(BGN_DATE) # only tornadoes
-# p2 <- sub %>% filter(year(BGN_DATE) %in% 1955:1995) %>% arrange(BGN_DATE) # tornadoes, thunderstorm wind, and hail
-p3 <- sub %>% filter(year(BGN_DATE) %in% 1996:2011) %>% arrange(BGN_DATE) # all events
+# Subset only the years 1996-2011, when all storm event types were available and
+# standardized, fix a few important misspellings, and add variables that calculate
+# total number of fatalities and injuries combined and total property and crop damage
+# combined.
+p3 <- sub %>% 
+        filter(year(BGN_DATE) %in% 1996:2011) %>% 
+        mutate(EVTYPE = toupper(EVTYPE),
+               EVTYPE = ifelse(EVTYPE == "RIP CURRENTS", "RIP CURRENT", EVTYPE),
+               EVTYPE = ifelse(EVTYPE == "EXTREME COLD", "EXTREME COLD/WIND CHILL", EVTYPE),
+               EVTYPE = ifelse(EVTYPE == "HURRICANE", "HURRICANE/TYPHOON", EVTYPE),
+               EVTYPE = ifelse(EVTYPE == "TYPHOON", "HURRICANE/TYPHOON", EVTYPE),
+               EVTYPE = ifelse(EVTYPE == "STORM SURGE", "STORM SURGE/TIDE", EVTYPE),
+               EVTYPE = ifelse(EVTYPE == "TSTM WIND", "THUNDERSTORM WIND", EVTYPE),
+               EVTYPE = ifelse(EVTYPE == "WILD/FOREST FIRE", "WILDFIRE", EVTYPE),
+               EVTYPE = as.factor(EVTYPE),
+               total.fat.inj = FATALITIES + INJURIES,
+               prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
+               crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP),
+               total.dmg = prop.dmg + crop.dmg) %>% 
+        select(-c(PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP)) %>% 
+        arrange(BGN_DATE)
 
 # Extract official event names from online database. Note that there
 # are actually 49 unique events, not 48.
@@ -71,12 +87,11 @@ counts <- p3 %>%
 # "RIP CURRENTS" needs to be changed to "RIP CURRENT"
 # "EXTREME COLD" needs to be changed to "EXTREME COLD/WIND CHILL"
 # "HURRICANE" needs to be changed to "HURRICANE/TYPHOON"
+# "STORM SURGE" needs to be changed to "STORM SURGE/TIDE"
+# "TSTM WIND" needs to be changed to "THUNDERSTORM WIND"
+# "WILD/FOREST FIRE" needs to be changed to "WILDFIRE"
+# "TYPHOON" needs to be changed to "HURRICANE/TYPHOON"
 
-p3 <- p3 %>% mutate(EVTYPE = toupper(EVTYPE),
-                    EVTYPE = ifelse(EVTYPE == "RIP CURRENTS", "RIP CURRENT", EVTYPE),
-                    EVTYPE = ifelse(EVTYPE == "EXTREME COLD", "EXTREME COLD/WIND CHILL", EVTYPE),
-                    EVTYPE = ifelse(EVTYPE == "HURRICANE", "HURRICANE/TYPHOON", EVTYPE),
-                    EVTYPE = as.factor(EVTYPE))
 
 
 
@@ -95,40 +110,95 @@ health <- p3 %>%
         filter(FATALITIES > 0 | INJURIES > 0) %>% 
         group_by(EVTYPE) %>% 
         summarize(num.events = n(),
+                  grand.total = sum(FATALITIES + INJURIES),
                   total.fat = sum(FATALITIES),
-                  mean.fat = mean(FATALITIES),
-                  median.fat = median(FATALITIES),
                   max.fat = max(FATALITIES),
                   total.inj = sum(INJURIES),
-                  mean.inj = mean(INJURIES),
-                  median.inj = median(INJURIES),
                   max.inj = max(INJURIES)) %>% 
-        arrange(desc(num.events))
+        arrange(desc(grand.total))
 
-fat <- arrange(health, desc(total.fat))[1:10,] # top ten fatalities
-inj <- arrange(health, desc(total.inj))[1:10,] # top ten injuries
-num <- arrange(health, desc(num.events))[1:10,] # top ten most frequent events
+# All top ten storm types are official storm types
+all(health$EVTYPE[1:10] %in% event.names)
 
-# plot showing top ten total fatalities
-par(las = 1, mar = c(5,10,4,2), mfrow = c(1,1))
-with(fat[10:1,], 
-     barplot(total.fat, 
-             names.arg = EVTYPE,
-             horiz = TRUE,
-             cex.names = .75,
-             xlim = c(0,2000),
-             main = "Total number of fatalities from 1996-2011",
-             xlab = "Number of fatalities"))
-# plot showing top ten total injuries
-with(inj[10:1,],
-     barplot(total.inj, 
-             names.arg = EVTYPE,
-             horiz = TRUE,
-             cex.names = .75,
-             xlim = c(0, 21000),
-             xaxp = c(0, 21000, 7),
-             main = "Total number of injuries from 1996-2011",
-             xlab = "Number of injuries"))
+health.levels <- p3 %>% 
+        filter(FATALITIES > 0 | INJURIES > 0) %>% 
+        group_by(EVTYPE) %>% 
+        summarize(grand.total = sum(FATALITIES + INJURIES)) %>% 
+        arrange(grand.total) %>% 
+        pull(EVTYPE) %>% 
+        as.character()
+
+library(tidyr)
+health2 <- p3 %>% 
+        filter(FATALITIES > 0 | INJURIES > 0) %>% 
+        group_by(EVTYPE) %>% 
+        summarize(fatalities = sum(FATALITIES),
+                  injuries = sum(INJURIES),
+                  grand.total = sum(FATALITIES, INJURIES)) %>% 
+        arrange(desc(grand.total)) %>% 
+        gather("inj.fat", "count", fatalities, injuries) %>% 
+        arrange(desc(grand.total)) %>% 
+        head(20) %>% 
+        mutate(EVTYPE = factor(EVTYPE, levels = health.levels), # Put factor levels in decreasing order
+               inj.fat = factor(inj.fat, levels = c("injuries", "fatalities"))) %>% 
+        select(-grand.total)
+        
+
+# Make a plot showing the ten storm event types that cause the most
+# combined fatalities and injuries, broken down by fatalities and
+# injuries for each storm event type.
+
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(RColorBrewer)
+library(scales)
+# theme stores all the information to make the plot look pretty
+theme <- theme_classic() +
+        theme(legend.position = c(.6,.25),
+              legend.justification = c(0,0),
+              legend.key.size = unit(2, "lines"),
+              legend.text = element_text(size = 12),
+              axis.text.y = element_text(color = "black"),
+              axis.title.x = element_text(size = 16,
+                                          margin = margin(20, 0, 0, 0)),
+              plot.title = element_text(size = 18, 
+                                        face = "bold",
+                                        hjust = 0,
+                                        margin = margin(0, 0, 30, 0)),
+              axis.text = element_text(size = 12),
+              panel.grid.major.x = element_line(color = "gray"),
+              panel.grid.minor.x = element_line(color = "gray"),
+              plot.caption = element_text(hjust = 0),
+              plot.margin = margin(30,0,15,0))
+captionA <- "FIGURE 1.  The ten storm events that have caused the highest number of deaths and injuries from
+1996 to 2011. The length of the bars represents the total number of injuries plus the total number of deaths and
+the color of the bars shows the individual totals of injuries and deaths. Tornadoes have caused by far the most
+injuries (20,667 in total). Excessive heat has caused the most deaths (1,797 in total)."
+title1 <- textGrob("Storm events causing the most \ndeaths and injuries from 1996-2011",
+                   x = unit(.1, "npc"),
+                   just = c("left"),
+                   gp = gpar(fontsize = 18, 
+                             fontface = "bold"))
+plot1 <- ggplot(health2, aes(EVTYPE, count)) +
+        geom_bar(stat = "identity", 
+                 aes(fill = inj.fat)) +
+        labs(x = "",
+             y = "Total number of deaths and injuries") +
+        scale_fill_brewer(name = "", 
+                          labels = c("Injuries", "Deaths"),
+                          palette = "Paired") +
+        scale_y_continuous(labels = comma) +
+        coord_flip() +
+        theme
+caption1 <- textGrob(str_wrap(captionA),
+                     x = unit(.1, "npc"),
+                     just = "left")
+
+# Here's the actual plot
+grid.arrange(plot1, top = title1, bottom = caption1)
+
+
 
 # NOTE: the difference between HEAT and EXCESSIVE HEAT is the heat index threshold
 # used to define them. A HEAT advisory occurs when the heat index is between 100 and
@@ -146,62 +216,62 @@ with(inj[10:1,],
 
 
 
-# Change duplicate value to 0.
- p3$PROPDMGEXP[354415] <- "0"
-
-# Create two new variables with literal dollar amount for
-# property and crop damage.
-p3 <- p3 %>% mutate(prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
-                    crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP))
+# Change duplicate value (and typo!) to 0.
+ p3[354415,7:9] <- 0
 
 # Calculate damage statistics for all EVTYPEs
-money <- p3 %>% 
-        filter(prop.dmg > 0 | crop.dmg > 0) %>% 
+damage <- p3 %>% 
+        filter(total.dmg > 0) %>% 
         group_by(EVTYPE) %>% 
-        summarize(num.events = n(),
-                  total.prop = sum(prop.dmg),
-                  mean.prop = mean(prop.dmg),
-                  median.prop = median(prop.dmg),
-                  max.prop = max(prop.dmg),
-                  total.crop = sum(crop.dmg),
-                  mean.crop = mean(crop.dmg),
-                  median.crop = median(crop.dmg),
-                  max.crop = max(crop.dmg))
+        summarize(total.prop = sum(prop.dmg),
+                  total.crop = sum(crop.dmg)) %>% 
+        mutate(grand.total = total.prop + total.crop) %>% 
+        arrange(desc(grand.total))
 
-# subset property damage data
-property <- money %>% 
-        select(1:6) %>% 
-        arrange(desc(total.prop))
-# subset crop damage data
-crops <- money %>% 
-        select(1:2, 7:10) %>% 
-        arrange(desc(total.crop))
+# The top ten storm types are all official storm types
+all(damage$EVTYPE[1:10] %in% event.names)
+
+damage.levels <- damage[1:10,] %>% # Create vector of EVTYPE factor levels
+        arrange(grand.total) %>% 
+        pull(EVTYPE) %>% 
+        as.character
+
+damage2 <- damage[1:10,] %>% 
+        mutate(EVTYPE = factor(EVTYPE, levels = damage.levels)) %>% 
+        gather("damage.type", "cost", total.crop, total.prop) %>% 
+        mutate(damage.type = factor(damage.type, levels = c("total.prop", "total.crop"))) %>% 
+        arrange(desc(grand.total))
+
+# Make the plot
+pal <- brewer.pal(6, "Paired")[5:6]
+captionB <- "FIGURE 2.  The ten storm event types that have caused the most property and crop damage from 1996 to 2011.
+The length of each bar shows the total property damage plus the total crop damage in billions of US dollars, and
+the color of the bars represents the individual totals of property damage and crop damage.
+Hurricanes have caused the most damage overall (about $87 billion) but droughts have caused the most crop
+damage (about $13 billion)."
+title2 <- textGrob("Storm events causing the most property \nand crop damage from 1996-2011",
+                   x = unit(.1, "npc"),
+                   just = c("left"),
+                   gp = gpar(fontsize = 18, 
+                             fontface = "bold"))
+plot2 <- ggplot(damage2, aes(EVTYPE, cost/1e9)) +
+        geom_bar(stat = "identity",
+                 aes(fill = damage.type)) +
+        labs(x = "",
+             y = "Total damage in billions of US dollars") +
+        scale_fill_manual(name = "", 
+                          labels = c("Property damage", "Crop damage"),
+                          values = pal) +
+        coord_flip() +
+        theme
+caption2 <- textGrob(str_wrap(captionB),
+                     x = unit(.1, "npc"),
+                     just = c("left"))
+
+# Here's the plot.
+grid.arrange(plot2, top = title2, bottom = caption2)
 
 
-
-# Make plots
-
-par(las = 1, mar = c(5,10,4,2), mfrow = c(1,1))
-
-# Plot top ten property damage storm types
-with(property[10:1,], barplot(total.prop,
-                              names.arg = EVTYPE,
-                              horiz = TRUE,
-                              cex.names = .75,
-                              main = "Total property damage due to storms from 1996-2011",
-                              xlab = "US Dollars"))
-
-# Plot top ten crop damage storm types
-with(crops[10:1,], barplot(total.crop,
-                           names.arg = EVTYPE,
-                           horiz = TRUE,
-                           cex.names = .75,
-                           main = "Total crop damage due to storms from 1996-2011",
-                           xlab = "US Dollars"))
-
-# NOTES:
-# STORM SURGE should be changed to STORM SURGE/TIDE
-# change the axis limits to something sensible
 
 
 
