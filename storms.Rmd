@@ -1,0 +1,23 @@
+---
+title: A Brief Exploration of the Health and Economic Effects of Different Types of
+  Storms
+author: "Andrew Pratt"
+date: "August 9, 2017"
+output: html_document
+---
+
+Last Updated: `r Sys.Date()`
+
+## Synopsis
+
+
+
+
+
+
+
+## Data Processing
+
+
+
+## Results
