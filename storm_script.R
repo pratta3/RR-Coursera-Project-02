@@ -11,17 +11,40 @@ file <- bunzip2("stormData.csv.bz2", temporary = TRUE, remove = FALSE)
 storms <- fread(file)
 unlink(file, recursive = TRUE)
 
+# dmg.convert is a function that calculates the literal dollar amount
+# from PROPDMG and PROPDMGEXP (or CROPDMG and CROPDMGEXP).
+dmg.convert <- function(x, y){
+        z <- rep(NA, length(x))
+        for(i in 1:length(x)){
+                if(y[i] == "" | y[i] == "0"){
+                        z[i] <- 0
+                } else if(y[i] == "K"){
+                        z[i] <- x[i]*10^3
+                } else if(y[i] == "M"){
+                        z[i] <- x[i]*10^6
+                } else if(y[i] == "B"){
+                        z[i] <- x[i]*10^9
+                }
+        }
+        z
+}
+
 sub <- storms[,c(2,7,8,23,24,25,26,27,28)]
+sub2 <- storms[,c(2,6,7,8,23,24,25,26,27,28,36)] # Better subset contains REMARKS
 
 # Convert BGN_DATE to POSIXct
 library(lubridate)
 sub$BGN_DATE <- mdy_hms(sub$BGN_DATE)
+sub2 <- sub2 %>% mutate(BGN_DATE = mdy_hms(BGN_DATE),
+                        EVTYPE = toupper(EVTYPE),
+                        prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
+                        crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP))
 
 # Break up the data into three periods based on the EVTYPES
 # recorded in each period
 library(dplyr)
-p1 <- sub %>% filter(year(BGN_DATE) %in% 1950:1954) %>% arrange(BGN_DATE) # only tornadoes
-p2 <- sub %>% filter(year(BGN_DATE) %in% 1955:1995) %>% arrange(BGN_DATE) # tornadoes, thunderstorm wind, and hail
+# p1 <- sub %>% filter(year(BGN_DATE) %in% 1950:1954) %>% arrange(BGN_DATE) # only tornadoes
+# p2 <- sub %>% filter(year(BGN_DATE) %in% 1955:1995) %>% arrange(BGN_DATE) # tornadoes, thunderstorm wind, and hail
 p3 <- sub %>% filter(year(BGN_DATE) %in% 1996:2011) %>% arrange(BGN_DATE) # all events
 
 # Extract official event names from online database. Note that there
@@ -123,8 +146,8 @@ with(inj[10:1,],
 
 
 
-# Fix typos (or is it a typo after all?)
-# p3$PROPDMGEXP[354415] <- "M"
+# Change duplicate value to 0.
+# p3$PROPDMGEXP[354415] <- "0"
 
 # Look at PROPDMG and CROPDMG
 
@@ -135,23 +158,7 @@ head(p3[p3$PROPDMGEXP == 0,])
 # Same applies for CROPDMGEXP and CROPDMG. (There aren't any 0's in CROPDMGEXP.)
 nrow(p3[p3$CROPDMG == 0 & p3$CROPDMGEXP == "",]) == sum(p3$CROPDMGEXP == "")
 
-# dmg.convert is a function that calculates the literal dollar amount
-# from PROPDMG and PROPDMGEXP (or CROPDMG and CROPDMGEXP).
-dmg.convert <- function(x, y){
-        z <- rep(NA, length(x))
-        for(i in 1:length(x)){
-                if(y[i] == "" | y[i] == "0"){
-                        z[i] <- 0
-                } else if(y[i] == "K"){
-                        z[i] <- x[i]*10^3
-                } else if(y[i] == "M"){
-                        z[i] <- x[i]*10^6
-                } else if(y[i] == "B"){
-                        z[i] <- x[i]*10^9
-                }
-        }
-        z
-}
+
 
 # Create two new variables with literal dollar amount for
 # property and crop damage.
@@ -213,14 +220,6 @@ katrina2 <- storms %>%
 # of manual searching through the remarks after filtering out
 # selections)
 
-katrina3 <- storms %>% 
-        select(REMARKS) %>% 
-        filter(str_detect(REMARKS, "Katrina|KATRINA")) %>% 
-        mutate(fatalities = str_c(str_extract_all(REMARKS, "(\\d+|[A-Za-z]+) (\\d+|[A-Za-z]+) (fatality|fatalities)"),
-                                  sep = ","),
-               deaths = str_c(str_extract_all(REMARKS, "(\\d+|[A-Za-z]+) (death|deaths)"))) %>% 
-        filter(fatalities != "character(0)" | deaths != "character(0)")
-
 katrina4 <- storms %>% 
         select(REMARKS) %>% 
         filter(str_detect(REMARKS, "Katrina|KATRINA")) %>% 
@@ -228,13 +227,77 @@ katrina4 <- storms %>%
         filter(numbers != "character(0)")
 
 storms %>% select(REMARKS) %>% filter(str_detect(REMARKS, "Hurricane Katrina was one of the strongest and most"))
-# Fatalities occurring in Louisiana as a result of Hurricane Katrina numbered approximately 1097 people as of 
+# (Excerpt)
+# ...Fatalities occurring in Louisiana as a result of Hurricane Katrina numbered approximately 1097 people as of 
 # late June 2006. The majority of the victims were in the New Orleans area. 480 other Louisiana residents died 
 # in other states after evacuating..\r\n Detailed information on the deaths, locations, and indirect or direct 
-# fatalities will be described in updates to Storm Data.
+# fatalities will be described in updates to Storm Data...
 
 # My only guess is that these deaths could not be directly attributed to any of the EVTYPEs available in
 # the Storm Data. But this seems unusual.
+
+
+# Look at the dates when the most damage was done by each of the unique EVTYPEs.
+worst <- storms %>% 
+        mutate(BGN_DATE = mdy_hms(BGN_DATE),
+               EVTYPE = toupper(EVTYPE)) %>% 
+        filter(EVTYPE %in% event.names) %>% 
+        mutate(prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
+               crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP),
+               tot.dmg = prop.dmg + crop.dmg) %>% 
+        group_by(EVTYPE) %>% 
+        summarize(dmg = sum(tot.dmg, na.rm = TRUE),
+                  max.dmg = max(tot.dmg, na.rm = TRUE),
+                  fat = sum(FATALITIES, na.rm = TRUE),
+                  inj = sum(INJURIES, na.rm = TRUE),
+                  worst.date = first(BGN_DATE[which(tot.dmg == max.dmg)])) %>% 
+        arrange(desc(dmg))
+
+# What flood was on 1/1/2006 that caused $115 billion damage??
+
+flood <- sub2 %>% 
+        mutate(BGN_DATE = mdy_hms(BGN_DATE)) %>% 
+        filter(BGN_DATE == ymd("2006.1.1")) %>% 
+        arrange(EVTYPE)
+
+# Napa River flooded.
+
+napa <- sub2 %>% 
+        mutate(BGN_DATE = mdy_hms(BGN_DATE)) %>% 
+        filter(year(BGN_DATE) %in% 2005:2006) %>% 
+        filter(str_detect(REMARKS, "Napa River"))
+
+# It looks to me like these two entries are effectively duplicates AND that the actual
+# damage amount should be $115 MILLION instead of billion.
+
+
+
+
+# This brings up a question. Are there other duplicate damage estimates in the dataset?
+
+dup <- sub2 %>% 
+        mutate(dmg = prop.dmg + crop.dmg) %>% 
+        group_by(EVTYPE) %>% 
+        summarize(max.dmg = max(dmg),
+                  num.dates = sum(dmg == max.dmg)) %>% 
+        arrange(desc(max.dmg))
+
+# It appears not.
+
+# OK. Maybe it's time to start making some exploratory plots.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
