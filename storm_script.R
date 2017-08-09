@@ -147,24 +147,14 @@ with(inj[10:1,],
 
 
 # Change duplicate value to 0.
-# p3$PROPDMGEXP[354415] <- "0"
-
-# Look at PROPDMG and CROPDMG
-
-# All cases where PROPDMGEXP is equal to "", PROPDMG is equal to 0.
-nrow(p3[p3$PROPDMG == 0 & p3$PROPDMGEXP == "",]) == sum(p3$PROPDMGEXP == "")
-# Also the only case where PROPDMGEXP is 0, PROPDMG is also equal to 0.
-head(p3[p3$PROPDMGEXP == 0,])
-# Same applies for CROPDMGEXP and CROPDMG. (There aren't any 0's in CROPDMGEXP.)
-nrow(p3[p3$CROPDMG == 0 & p3$CROPDMGEXP == "",]) == sum(p3$CROPDMGEXP == "")
-
-
+ p3$PROPDMGEXP[354415] <- "0"
 
 # Create two new variables with literal dollar amount for
 # property and crop damage.
-p3$prop.dmg <- dmg.convert(p3$PROPDMG, p3$PROPDMGEXP)
-p3$crop.dmg <- dmg.convert(p3$CROPDMG, p3$CROPDMGEXP)
+p3 <- p3 %>% mutate(prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
+                    crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP))
 
+# Calculate damage statistics for all EVTYPEs
 money <- p3 %>% 
         filter(prop.dmg > 0 | crop.dmg > 0) %>% 
         group_by(EVTYPE) %>% 
@@ -176,122 +166,42 @@ money <- p3 %>%
                   total.crop = sum(crop.dmg),
                   mean.crop = mean(crop.dmg),
                   median.crop = median(crop.dmg),
-                  max.crop = max(crop.dmg)) %>% 
+                  max.crop = max(crop.dmg))
+
+# subset property damage data
+property <- money %>% 
+        select(1:6) %>% 
         arrange(desc(total.prop))
-
-# I can't figure out why there are ZERO fatalities and injuries
-# listed for Hurricane Katrina. These and the property and crop damage
-# numberes do not match up with the data from the online database...
-
-katrina <- storms %>% 
-        filter(str_detect(REMARKS, "Katrina|KATRINA")) %>%
-        mutate(BGN_DATE = mdy_hms(BGN_DATE)) %>% 
-        filter(month(BGN_DATE) %in% c(8,9)) %>% 
-        mutate(prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
-               crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP)) %>% 
-        summarize(fatalities = sum(FATALITIES, na.rm = TRUE),
-                  injuries = sum(INJURIES, na.rm = TRUE),
-                  prop.dmg = sum(prop.dmg),
-                  crop.dmg = sum(crop.dmg))
-
-# According to this, during Hurricane Katrina there were
-# 25 deaths, 118 injuries, $32 billion property damage, and
-# $2 billion crop damage. It might not be a perfect approach
-# though.
-
-katrina2 <- storms %>% 
-        mutate(BGN_DATE = mdy_hms(BGN_DATE)) %>% 
-        filter(year(BGN_DATE) == 2005 & month(BGN_DATE) %in% c(8,9)) %>% 
-        mutate(prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
-               crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP)) %>% 
-        group_by(BGN_DATE) %>% 
-        summarize(num.days = n(),
-                  fatalities = sum(FATALITIES),
-                  injuries = sum(INJURIES),
-                  prop.dmg = sum(prop.dmg),
-                  crop.dmg = sum(crop.dmg))
-
-# There are a lot of entries that occur during the last week
-# of August 2005 when Hurricane Katrina occurred, but again,
-# according to this there were not as many deaths and injuries
-# as expected. This is especially annoying when considering the
-# fact that in the description of at least one entry, there is
-# listed a much larger number of casualties: (I had to do a bit
-# of manual searching through the remarks after filtering out
-# selections)
-
-katrina4 <- storms %>% 
-        select(REMARKS) %>% 
-        filter(str_detect(REMARKS, "Katrina|KATRINA")) %>% 
-        mutate(numbers = str_c(str_extract_all(REMARKS, "\\d{4}"), sep = ",")) %>% 
-        filter(numbers != "character(0)")
-
-storms %>% select(REMARKS) %>% filter(str_detect(REMARKS, "Hurricane Katrina was one of the strongest and most"))
-# (Excerpt)
-# ...Fatalities occurring in Louisiana as a result of Hurricane Katrina numbered approximately 1097 people as of 
-# late June 2006. The majority of the victims were in the New Orleans area. 480 other Louisiana residents died 
-# in other states after evacuating..\r\n Detailed information on the deaths, locations, and indirect or direct 
-# fatalities will be described in updates to Storm Data...
-
-# My only guess is that these deaths could not be directly attributed to any of the EVTYPEs available in
-# the Storm Data. But this seems unusual.
-
-
-# Look at the dates when the most damage was done by each of the unique EVTYPEs.
-worst <- storms %>% 
-        mutate(BGN_DATE = mdy_hms(BGN_DATE),
-               EVTYPE = toupper(EVTYPE)) %>% 
-        filter(EVTYPE %in% event.names) %>% 
-        mutate(prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
-               crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP),
-               tot.dmg = prop.dmg + crop.dmg) %>% 
-        group_by(EVTYPE) %>% 
-        summarize(dmg = sum(tot.dmg, na.rm = TRUE),
-                  max.dmg = max(tot.dmg, na.rm = TRUE),
-                  fat = sum(FATALITIES, na.rm = TRUE),
-                  inj = sum(INJURIES, na.rm = TRUE),
-                  worst.date = first(BGN_DATE[which(tot.dmg == max.dmg)])) %>% 
-        arrange(desc(dmg))
-
-# What flood was on 1/1/2006 that caused $115 billion damage??
-
-flood <- sub2 %>% 
-        mutate(BGN_DATE = mdy_hms(BGN_DATE)) %>% 
-        filter(BGN_DATE == ymd("2006.1.1")) %>% 
-        arrange(EVTYPE)
-
-# Napa River flooded.
-
-napa <- sub2 %>% 
-        mutate(BGN_DATE = mdy_hms(BGN_DATE)) %>% 
-        filter(year(BGN_DATE) %in% 2005:2006) %>% 
-        filter(str_detect(REMARKS, "Napa River"))
-
-# It looks to me like these two entries are effectively duplicates AND that the actual
-# damage amount should be $115 MILLION instead of billion.
+# subset crop damage data
+crops <- money %>% 
+        select(1:2, 7:10) %>% 
+        arrange(desc(total.crop))
 
 
 
+# Make plots
 
-# This brings up a question. Are there other duplicate damage estimates in the dataset?
+par(las = 1, mar = c(5,10,4,2), mfrow = c(1,1))
 
-dup <- sub2 %>% 
-        mutate(dmg = prop.dmg + crop.dmg) %>% 
-        group_by(EVTYPE) %>% 
-        summarize(max.dmg = max(dmg),
-                  num.dates = sum(dmg == max.dmg)) %>% 
-        arrange(desc(max.dmg))
+# Plot top ten property damage storm types
+with(property[10:1,], barplot(total.prop,
+                              names.arg = EVTYPE,
+                              horiz = TRUE,
+                              cex.names = .75,
+                              main = "Total property damage due to storms from 1996-2011",
+                              xlab = "US Dollars"))
 
-# It appears not.
+# Plot top ten crop damage storm types
+with(crops[10:1,], barplot(total.crop,
+                           names.arg = EVTYPE,
+                           horiz = TRUE,
+                           cex.names = .75,
+                           main = "Total crop damage due to storms from 1996-2011",
+                           xlab = "US Dollars"))
 
-# OK. Maybe it's time to start making some exploratory plots.
-
-
-
-
-
-
-
+# NOTES:
+# STORM SURGE should be changed to STORM SURGE/TIDE
+# change the axis limits to something sensible
 
 
 
