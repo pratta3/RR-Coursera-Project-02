@@ -346,7 +346,18 @@ grid.arrange(plot2, top = title2, bottom = caption2)
 ```
 <br>
 
+As explained in the caption, hurricanes have caused the most total damage from 1996-2011, and the bulk of this
+damage came from property damage. Droughts, however, have caused much more crop damage than any other type of
+weather event.
+<br>
 
+Not surprisingly, many of the storm types were present in both plots, indicating that the types of storms that
+tend to cause a lot of damage tend to be the same types of storms that injure and kill people.
+<br>
+
+For more information about the storm database, you can visit the [NOAA](https://www.ncdc.noaa.gov/stormevents/details.jsp?type=eventtype) website. You can also visit my
+[Github repository](https://github.com/pratta3/RR-Coursera-Project-02) to browse the detailed history of the
+analysis.
 
 
 
