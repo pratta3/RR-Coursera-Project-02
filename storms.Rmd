@@ -6,6 +6,10 @@ date: "August 9, 2017"
 output: html_document
 ---
 
+```{r include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, cache = TRUE, fig.height = 6)
+```
+
 Last Updated: `r Sys.Date()`
 
 ## Synopsis
@@ -149,7 +153,7 @@ sub2 %>% filter(EVTYPE %in% event.names) %>%
 After reading some of the `REMARKS` surrounding the Napa County flood, I learned that it was the Napa River that
 flooded. I did some research and found no evidence that supported an estimate of anywhere near $100 billion in
 damages. Furthermore, as I was looking at flood entries around the same time, I found this:
-```{r echo = TRUE}
+```{r echo = TRUE, cache = TRUE}
 sub2 %>% filter(year(BGN_DATE) %in% 2005:2006) %>% 
         filter(str_detect(REMARKS, "Napa River")) %>% 
         select(BGN_DATE, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP) # look similar?
@@ -159,7 +163,7 @@ sub2 %>% filter(year(BGN_DATE) %in% 2005:2006) %>%
 It looks like two estimates were made of the same flood on two separate days, and on one of those days a 'B' for
 billion was entered intead of an 'M' for million. Even looking at the remarks from both days, it appears that the 
 estimate was meant to be in the millions, not the billions:
-```{r echo = TRUE}
+```{r echo = TRUE, cache = TRUE}
 sub2 %>% filter(year(BGN_DATE) %in% 2005:2006) %>% 
         filter(str_detect(REMARKS, "Napa River")) %>% 
         select(REMARKS)
@@ -168,7 +172,7 @@ sub2 %>% filter(year(BGN_DATE) %in% 2005:2006) %>%
 
 So because of this, I decided to remove the duplicate billion dollar estimate from the analysis.  
 Here are all the additional changes made to the dataset to make it ready for analysis:
-```{r echo = TRUE}
+```{r echo = TRUE, cache = TRUE}
 p3 <- p3 %>% mutate(EVTYPE = ifelse(EVTYPE == "RIP CURRENTS", "RIP CURRENT", EVTYPE),
                EVTYPE = ifelse(EVTYPE == "EXTREME COLD", "EXTREME COLD/WIND CHILL", EVTYPE),
                EVTYPE = ifelse(EVTYPE == "HURRICANE", "HURRICANE/TYPHOON", EVTYPE),
@@ -221,7 +225,7 @@ health2 <- p3 %>%
         mutate(EVTYPE = factor(EVTYPE, levels = health.levels), # Put factor levels in decreasing order
                inj.fat = factor(inj.fat, levels = c("injuries", "fatalities"))) %>% 
         select(-grand.total)
-        
+
 
 # Make a plot showing the ten storm event types that cause the most
 # combined fatalities and injuries, broken down by fatalities and
@@ -249,7 +253,8 @@ theme <- theme_classic() +
               axis.text = element_text(size = 12),
               panel.grid.major.x = element_line(color = "gray"),
               panel.grid.minor.x = element_line(color = "gray"),
-              plot.caption = element_text(hjust = 0),
+              plot.caption = element_text(hjust = 0,
+                                          margin = margin(20, 0, 0, 0)),
               plot.margin = margin(30,0,15,0))
 
 # title1, plot1, and caption1 will be arguments in grid.arrange()
@@ -280,7 +285,7 @@ caption1 <- textGrob(str_wrap(captionA),
 # Here's the actual plot
 grid.arrange(plot1, top = title1, bottom = caption1)
 ```
-<br>
+<br><br><br><br><br>
 
 As the caption explains, tornadoes have caused by far the most number of injuries from 1996-2011, while excessive
 heat has caused the most number of deaths. Note that "excessive heat" and "heat" both show up in the top ten storm
@@ -315,15 +320,12 @@ damage <- damage[1:10,] %>%
         arrange(desc(grand.total))
 
 # Make the plot
-pal <- brewer.pal(6, "Paired")[5:6] # custom color palette
-
-captionB <- "FIGURE 2.  The ten storm event types that have caused the most property and crop damage from 1996 to 2011.
-The length of each bar shows the total property damage plus the total crop damage in billions of US dollars, and
+pal <- brewer.pal(6, "Paired")[5:6]
+captionB <- "FIGURE 2.  The ten storm event types that have caused the most property and crop damage from 1996 to 
+2011. The length of each bar shows the total property damage plus the total crop damage in billions of US dollars, and
 the color of the bars represents the individual totals of property damage and crop damage.
 Hurricanes have caused the most damage overall (about $87 billion) but droughts have caused the most crop
 damage (about $13 billion)."
-
-# title2, plot2, and caption2 will be passed as arguments to grid.arrange()
 title2 <- textGrob("Storm events causing the most property \nand crop damage from 1996-2011",
                    x = unit(.1, "npc"),
                    just = c("left"),
@@ -346,7 +348,7 @@ caption2 <- textGrob(str_wrap(captionB),
 # Here's the plot.
 grid.arrange(plot2, top = title2, bottom = caption2)
 ```
-<br>
+<br><br><br><br><br><br>
 
 As explained in the caption, hurricanes have caused the most total damage from 1996-2011, and the bulk of this
 damage came from property damage. Droughts, however, have caused much more crop damage than any other type of
