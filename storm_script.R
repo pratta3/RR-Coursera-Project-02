@@ -197,7 +197,8 @@ theme <- theme_classic() +
               axis.text = element_text(size = 12),
               panel.grid.major.x = element_line(color = "gray"),
               panel.grid.minor.x = element_line(color = "gray"),
-              plot.caption = element_text(hjust = 0),
+              plot.caption = element_text(hjust = 0,
+                                          margin = margin(20, 0, 0, 0)),
               plot.margin = margin(30,0,15,0))
 
 # title1, plot1, and caption1 will be arguments in grid.arrange()
@@ -206,8 +207,8 @@ captionA <- "FIGURE 1.  The ten storm events that have caused the highest number
 the color of the bars shows the individual totals of injuries and deaths. Tornadoes have caused by far the most
 injuries (20,667 in total). Excessive heat has caused the most deaths (1,797 in total)."
 title1 <- textGrob("Storm events causing the most \ndeaths and injuries from 1996-2011",
-                   x = unit(.1, "npc"),
-                   just = c("left"),
+                   x = unit(.5, "npc"),
+                   just = c("center"),
                    gp = gpar(fontsize = 18, 
                              fontface = "bold"))
 plot1 <- ggplot(health2, aes(EVTYPE, count)) +
@@ -222,7 +223,7 @@ plot1 <- ggplot(health2, aes(EVTYPE, count)) +
         coord_flip() +
         theme
 caption1 <- textGrob(str_wrap(captionA),
-                     x = unit(.1, "npc"),
+                     x = unit(0.1, "npc"),
                      just = "left")
 
 # Here's the actual plot
@@ -264,8 +265,8 @@ the color of the bars represents the individual totals of property damage and cr
 Hurricanes have caused the most damage overall (about $87 billion) but droughts have caused the most crop
 damage (about $13 billion)."
 title2 <- textGrob("Storm events causing the most property \nand crop damage from 1996-2011",
-                   x = unit(.1, "npc"),
-                   just = c("left"),
+                   x = unit(.5, "npc"),
+                   just = c("center"),
                    gp = gpar(fontsize = 18, 
                              fontface = "bold"))
 plot2 <- ggplot(damage, aes(EVTYPE, cost/1e9)) +
@@ -279,7 +280,7 @@ plot2 <- ggplot(damage, aes(EVTYPE, cost/1e9)) +
         coord_flip() +
         theme
 caption2 <- textGrob(str_wrap(captionB),
-                     x = unit(.1, "npc"),
+                     x = unit(0.1, "npc"),
                      just = c("left"))
 
 # Here's the plot.
