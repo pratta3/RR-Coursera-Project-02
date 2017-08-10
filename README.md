@@ -8,3 +8,5 @@ The repository contains this README.md file along with three others:
 * storm_script.R contains only the R code for the analysis
 * storms.Rmd is an RMarkdown document containing the code from storm_script along with a narrative text
 * storms.html is the html document produced by knitting storms.Rmd
+
+The storms.html document has also been published on RPubs, which you can visit by clicking [here](http://rpubs.com/pratta3/298466).
