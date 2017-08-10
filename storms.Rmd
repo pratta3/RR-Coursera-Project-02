@@ -24,11 +24,13 @@ This section provides a step-by-step process for downloading, reading in, and pr
 ready for analysis.
 <br>
 
-Step 1: Download and read the dataset into R.
+Step 1: Download and read the dataset into R. This should take about 30 seconds.
 ```{r echo = TRUE, cache = TRUE, message = FALSE}
 # Download the .csv.bz2 file
 url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
-download.file(url, destfile = "stormData.csv.bz2")
+if(!file.exists("stormData.csv.bz2")){
+        download.file(url, destfile = "stormData.csv.bz2")
+}
 
 # Unzip the bz2 file, store it in a temporary file, read in
 # data using fread, and finally delete the temporary file.
@@ -126,12 +128,12 @@ to classify them with their correct, official name would clearly have an impact 
 In addition, by looking at `max.total.dmg` it seemed to me that there was probably a typo. Given that no other
 `EVTYPE` came near $100 billion in total damage COMBINED, it seemed very unusual that a SINGLE flood could do 
 more than $115 billion in total damage! So I decided to look into it:
-```{r echo = TRUE}
+```{r echo = TRUE, cache = TRUE}
 sub2 <- storms[,c(2,6,7,8,23,24,25,26,27,28,36)] %>%  # subset containing REMARKS and COUNTY
         mutate(EVTYPE = toupper(EVTYPE),
                BGN_DATE = mdy_hms(BGN_DATE))
 
-sub2 %>% filter(EVTYPE = event.names) %>% 
+sub2 %>% filter(EVTYPE %in% event.names) %>% 
         mutate(prop.dmg = dmg.convert(PROPDMG, PROPDMGEXP),
                crop.dmg = dmg.convert(CROPDMG, CROPDMGEXP),
                tot.dmg = prop.dmg + crop.dmg) %>% 
